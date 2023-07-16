@@ -11,7 +11,7 @@ func NewApp() *pocketbase.PocketBase {
 	app := pocketbase.New()
 
 	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
-		for _, r := range api.GetRoutes(app) {
+		for _, r := range api.Routes(app) {
 			_, _ = e.Router.AddRoute(r)
 		}
 

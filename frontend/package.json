@@ -1,5 +1,5 @@
 {
-  "name": "runit",
+  "name": "copuchat",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,11 +10,14 @@
   },
   "dependencies": {
     "autoprefixer": "^10.4.14",
+    "pocketbase": "^0.15.3",
     "postcss": "^8.4.22",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.9.0",
-    "tailwindcss": "^3.3.1"
+    "react-use-websocket": "^4.3.1",
+    "tailwindcss": "^3.3.1",
+    "zustand": "^4.3.9"
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^4.1.1",

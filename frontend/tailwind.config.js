@@ -3,12 +3,18 @@ export default {
   content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
+      // https://realtimecolors.com/?colors=d2f3fe-01222d-74d9fb-011319-07a9df
       colors: {
-        main: '#2e5a62',
+        text: "#d2f3fe",
+        background: "#01222d",
+        primary: "#74d9fb",
+        secondary: "#011319",
+        accent: "#07a9df",
+        complement: "#082934",
       },
     },
     fontFamily: {
-      sans: ["Montserrat", "system-ui", "sans-serif"],
+      sans: ["Roboto", "Montserrat", "system-ui", "sans-serif"],
     },
   },
   plugins: [],

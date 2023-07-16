@@ -17,7 +17,7 @@ const Header = () => {
               Somos una firma de capitales chilenos que opera en diversos países
               de Latinoamérica.
             </p>
-            <button className="bg-main hover:opacity-70 text-white text-md md:text-xl font-bold py-4 px-8 rounded">
+            <button className="bg-main hover:opacity-70 text-md md:text-xl font-bold py-4 px-8 rounded">
               Contáctanos
             </button>
           </div>
