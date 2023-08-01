@@ -32,7 +32,7 @@ const NavBar = () => {
   const navigation = parseParams();
 
   return (
-    <div className="bg-complement sticky top-0 z-50 shadow-md flex justify-center">
+    <div className="bg-complement flex justify-center">
       <nav className="container flex items-center flex-wrap py-1 px-4">
         <a href="">
           <img src={logo} alt="Copuchat logo" width={120} />

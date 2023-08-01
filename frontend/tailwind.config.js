@@ -12,6 +12,9 @@ export default {
         accent: "#07a9df",
         complement: "#082934",
       },
+      boxShadow: {
+        dup: '15px 15px 0px #01131988',
+      },
     },
     fontFamily: {
       sans: ["Roboto", "Montserrat", "system-ui", "sans-serif"],

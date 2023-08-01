@@ -1,20 +1,16 @@
 import ChatBox from "./chatbox";
 import SubRooms from "./subrooms";
 
-const Title = ({ text }: { text: string }) => (
-  <p className="text-lg mb-5">{text}</p>
-);
-
 const Content = () => {
-  const title = "dsfsd";
+  const title = "ronaldo: dsfsd";
 
   return (
     <div className="bg-background flex justify-center flex-1">
-      <div className="container p-5 flex flex-col">
-        <Title text={title} />
-        <div className="flex h-full max-h-[600px]">
+      <div className="container pb-10 px-4 flex flex-col">
+        <p className="text-lg my-3">{title}</p>
+        <div className="flex h-full">
           <ChatBox />
-          <div className="mx-3"></div>
+          <div className="mx-8"></div>
           <SubRooms />
         </div>
       </div>
