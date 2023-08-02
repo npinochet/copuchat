@@ -13,7 +13,7 @@ export default {
         complement: "#082934",
       },
       boxShadow: {
-        dup: '15px 15px 0px #01131988',
+        dup: "15px 15px 0px #01131988",
       },
     },
     fontFamily: {

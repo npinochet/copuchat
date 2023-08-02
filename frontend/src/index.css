@@ -2,12 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body {
-    height: 100%;
+html,
+body {
+  height: 100%;
 }
 
 #root {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+[contenteditable="true"]:empty:not(:focus)::before {
+  content: attr(placeholder);
+  opacity: 0.5;
 }

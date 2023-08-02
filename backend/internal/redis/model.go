@@ -1,8 +1,9 @@
 package redis
 
 type Message struct {
-	UserName string `json:"userName"`
-	Text     string `json:"text"`
+	UserName  string `json:"userName"`
+	Text      string `json:"text"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 type Room struct {

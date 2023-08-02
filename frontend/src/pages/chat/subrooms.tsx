@@ -18,7 +18,7 @@ const SubRooms = () => {
               <p className="text-xs text-slate-300">{v.room}</p>
             </div>
             <p className="flex items-center text-center">
-              <span className="text-green-700 text-xs mr-1">●</span>
+              <span className="text-green-700 text-sm mr-1">●</span>
               {v.activeMembers}
             </p>
           </div>

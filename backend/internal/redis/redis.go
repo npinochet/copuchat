@@ -73,7 +73,7 @@ func GetRoom(roomName string) (*Room, error) {
 	for i, entryAny := range values {
 		entry, _ := entryAny.([]any)
 		sm, _ := redis.StringMap(entry[1], nil)
-		room.Messages[i] = Message{sm["user"], sm["text"]}
+		room.Messages[i] = Message{sm["user"], sm["text"], time.Now().UnixMilli()}
 	}
 
 	return room, nil
