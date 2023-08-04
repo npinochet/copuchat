@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -53,12 +54,12 @@ func init() {
 }
 
 func chatKey(roomName string) string       { return "chat:" + roomName }
-func titleKey(roomName string) string      { return "roomTitle:" + roomName }
+func topicKey(roomName string) string      { return "roomTopic:" + roomName }
 func activeUserKey(roomName string) string { return "chatters:" + roomName }
 
 func GetRoom(roomName string) (*Room, error) {
-	title, err := getRoomTitle(roomName)
-	if err != nil {
+	topic, err := getRoomTopic(roomName)
+	if err != nil && !errors.Is(err, redis.ErrNil) {
 		return nil, err
 	}
 	conn := pool.Get()
@@ -69,11 +70,16 @@ func GetRoom(roomName string) (*Room, error) {
 		return nil, fmt.Errorf("redis: error, could not get messages for %s: %w", roomName, err)
 	}
 
-	room := &Room{Name: roomName, Title: title, Messages: make([]Message, len(values))}
+	room := &Room{Name: roomName, Topic: topic, Messages: make([]Message, len(values))}
 	for i, entryAny := range values {
 		entry, _ := entryAny.([]any)
+		key, _ := entry[0].([]byte)
+		timestamp, err := strconv.ParseInt(strings.Split(string(key), "-")[0], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("redis: error, could not parse timestamp %s: %w", key, err)
+		}
 		sm, _ := redis.StringMap(entry[1], nil)
-		room.Messages[i] = Message{sm["user"], sm["text"], time.Now().UnixMilli()}
+		room.Messages[len(values)-1-i] = Message{sm["user"], sm["text"], timestamp}
 	}
 
 	return room, nil
@@ -132,19 +138,24 @@ func AddMessage(message *Message, roomName string) error {
 	conn := pool.Get()
 	defer conn.Close()
 
-	res, err := conn.Do(
+	key, err := redis.String(conn.Do(
 		"XADD", chatKey(roomName), "NOMKSTREAM", "MAXLEN", "~", RoomMaxMessages, "*", "user", message.UserName, "text", message.Text,
-	)
-	if err != nil {
+	))
+	newRoom := errors.Is(err, redis.ErrNil)
+	if err != nil && !newRoom {
 		return fmt.Errorf("redis: error, could not save message. %w", err)
 	}
-	if res == nil {
+	message.Timestamp, err = strconv.ParseInt(strings.Split(key, "-")[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("redis: error, could not parse given timestamp %s: %w", key, err)
+	}
+	if newRoom {
 		// TODO: Only if parent room exists, if not send error.
 		if err := createRoom(message, roomName); err != nil {
 			return err
 		}
 	}
-	_, err = conn.Do("HSET", activeUserKey(roomName), message.UserName, time.Now().UnixMilli())
+	_, err = conn.Do("HSET", activeUserKey(roomName), message.UserName, message.Timestamp)
 	if err != nil {
 		return fmt.Errorf("redis: error, could not register user activity. %w", err)
 	}
@@ -152,8 +163,8 @@ func AddMessage(message *Message, roomName string) error {
 	return nil
 }
 
-func AddRoom(roomName, title, userName string) error {
-	if title, _ := getRoomTitle(roomName); title != "" {
+func AddRoom(roomName, topic, userName string) error {
+	if topic, _ := getRoomTopic(roomName); topic != "" {
 		return errors.New("room already exists")
 	}
 	conn := pool.Get()
@@ -161,13 +172,24 @@ func AddRoom(roomName, title, userName string) error {
 
 	message := &Message{
 		UserName: userName,
-		Text:     "Created Room " + title + "!",
+		Text:     "Created Room " + topic + "!",
 	}
 	if err := AddMessage(message, roomName); err != nil {
 		return err
 	}
-	if _, err := conn.Do("SET", titleKey(roomName), title); err != nil {
-		return fmt.Errorf("redis: error, could not set title for %s. %w", roomName, err)
+	if _, err := conn.Do("SET", topicKey(roomName), topic); err != nil {
+		return fmt.Errorf("redis: error, could not set topic for %s. %w", roomName, err)
+	}
+
+	return nil
+}
+
+func SetTopic(roomName, topic string) error {
+	conn := pool.Get()
+	defer conn.Close()
+
+	if _, err := conn.Do("SET", topicKey(roomName), topic); err != nil {
+		return fmt.Errorf("redis: error, could not set topic for %s. %w", roomName, err)
 	}
 
 	return nil
@@ -181,21 +203,19 @@ func createRoom(message *Message, roomName string) error {
 	if err != nil {
 		return fmt.Errorf("redis: error, could not save first message. %w", err)
 	}
-	if _, err := conn.Do("SET", titleKey(roomName), message.Text); err != nil {
-		return fmt.Errorf("redis: error, could not set title for %s. %w", roomName, err)
-	}
+	// TODO: Maybe broadcast "new room" on parent
 
 	return nil
 }
 
-func getRoomTitle(roomName string) (string, error) {
+func getRoomTopic(roomName string) (string, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
-	title, err := redis.String(conn.Do("GET", titleKey(roomName)))
+	topic, err := redis.String(conn.Do("GET", topicKey(roomName)))
 	if err != nil {
-		return "", fmt.Errorf("redis: error, could not get title for %s: %w", roomName, err)
+		return "", fmt.Errorf("redis: error, could not get topic for %s: %w", roomName, err)
 	}
 
-	return title, nil
+	return topic, nil
 }

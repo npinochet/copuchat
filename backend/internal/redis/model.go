@@ -8,6 +8,6 @@ type Message struct {
 
 type Room struct {
 	Name     string    `json:"name"`
-	Title    string    `json:"title"`
+	Topic    string    `json:"topic"`
 	Messages []Message `json:"messages"`
 }

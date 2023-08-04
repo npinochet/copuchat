@@ -1,8 +1,11 @@
-type WebSocketJson = Room | Message | null;
+type WebSocketEvent = {
+  Event: "Room" | "Message";
+  Data: Room | Message;
+}
 
 type Room = {
   name: string;
-  title: string;
+  topic: string;
   messages: Message[];
 };
 

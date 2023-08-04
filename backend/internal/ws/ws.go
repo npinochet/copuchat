@@ -11,6 +11,11 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+type Event struct {
+	Type string `json:"type"`
+	Data any    `json:"data"`
+}
+
 var Hubs = map[string]*Hub{}
 
 type Hub struct {
@@ -42,7 +47,7 @@ func (h *Hub) Broadcast(message *redis.Message, except []string) error {
 		if skip {
 			continue
 		}
-		if err := websocket.JSON.Send(conn, message); err != nil {
+		if err := websocket.JSON.Send(conn, Event{Type: "Message", Data: message}); err != nil {
 			return err
 		}
 	}
@@ -71,34 +76,34 @@ func Handler(roomName, userName string) (websocket.Handler, error) {
 				delete(Hubs, roomName)
 			}
 		}()
-		if err := websocket.JSON.Send(conn, room); err != nil {
+		if err := websocket.JSON.Send(conn, Event{Type: "Room", Data: room}); err != nil {
 			log.Printf("ws: error sending room: %s\n", err)
 		}
 
 		for {
-			var data *redis.Message
-			if err := websocket.JSON.Receive(conn, &data); err != nil {
+			var message *redis.Message
+			if err := websocket.JSON.Receive(conn, &message); err != nil {
 				log.Printf("ws: error reading conn: %s\n", err)
 
 				break
 			}
-			if data == nil || data.Text == "" {
+			if message == nil || message.Text == "" {
 				continue
 			}
-			data.UserName = userName
-			if err := handleMessage(hub, data, roomName, userName); err != nil {
+			message.UserName = userName
+			if err := handleMessage(hub, message, roomName); err != nil {
 				log.Printf("ws: error handling message: %s\n", err)
 			}
 		}
 	}, nil
 }
 
-func handleMessage(hub *Hub, message *redis.Message, roomName, userName string) error {
+func handleMessage(hub *Hub, message *redis.Message, roomName string) error {
 	if err := redis.AddMessage(message, roomName); err != nil {
 		return fmt.Errorf("ws: error adding message: to redis %w", err)
 	}
 
-	if err := hub.Broadcast(message, []string{userName}); err != nil {
+	if err := hub.Broadcast(message, nil); err != nil {
 		return fmt.Errorf("ws: error broadcasting: %w", err)
 	}
 

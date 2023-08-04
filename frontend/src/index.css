@@ -13,7 +13,7 @@ body {
   flex-direction: column;
 }
 
-[contenteditable="true"]:empty:not(:focus)::before {
+[contenteditable="true"]:empty::before {
   content: attr(placeholder);
   opacity: 0.5;
 }

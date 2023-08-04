@@ -25,7 +25,7 @@ func wsRoute(app *pocketbase.PocketBase) echo.Route {
 		Handler: func(c echo.Context) error {
 			userName := c.QueryParam("userName") // TODO: or is authenticated.
 			if userName == "" {
-				return echo.NewHTTPError(http.StatusBadRequest+4, errors.New("missing userName"))
+				return echo.NewHTTPError(http.StatusBadRequest, errors.New("missing userName"))
 			}
 			roomName := c.PathParam("*")
 			handler, err := ws.Handler(roomName, userName)
@@ -48,11 +48,11 @@ func postNewRoomRoute(app *pocketbase.PocketBase) echo.Route {
 		Method: http.MethodGet,
 		Path:   "/new_room/*",
 		Handler: func(c echo.Context) error {
-			roomName, title, userName := c.PathParam("*"), c.QueryParam("title"), c.QueryParam("userName")
-			if roomName == "" || title == "" {
-				return echo.NewHTTPError(http.StatusBadRequest, errors.New("missing room or title"))
+			roomName, topic, userName := c.PathParam("*"), c.QueryParam("topic"), c.QueryParam("userName")
+			if roomName == "" || topic == "" {
+				return echo.NewHTTPError(http.StatusBadRequest, errors.New("missing room or topic"))
 			}
-			if err := redis.AddRoom(roomName, title, userName); err != nil {
+			if err := redis.AddRoom(roomName, topic, userName); err != nil {
 				return err
 			}
 			data := &redis.Message{UserName: userName, Text: "New room Created!" + roomName}
