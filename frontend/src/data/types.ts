@@ -1,7 +1,7 @@
 type WebSocketEvent = {
   Event: "Room" | "Message";
   Data: Room | Message;
-}
+} | null;
 
 type Room = {
   name: string;

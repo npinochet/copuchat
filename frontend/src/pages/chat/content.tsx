@@ -18,6 +18,7 @@ const Content = () => {
   );
 
   useEffect(() => {
+    if (lastJsonMessage == null) return;
     if (lastJsonMessage.Event === "Message") return;
     const roomTopic = (lastJsonMessage.Data as Room)?.topic;
     if (topic !== undefined && topic !== null) setTopic(roomTopic as string);

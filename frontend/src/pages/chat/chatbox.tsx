@@ -18,6 +18,7 @@ const ChatBox = () => {
     );
 
   useEffect(() => {
+    if (lastJsonMessage == null) return;
     if (lastJsonMessage.Event === "Message") {
       const message = lastJsonMessage.Data as Message;
       if (message?.text !== undefined) setChat((chat) => [...chat, message]);
