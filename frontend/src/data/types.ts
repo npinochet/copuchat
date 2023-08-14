@@ -1,6 +1,6 @@
 type WebSocketEvent = {
-  Event: "Room" | "Message";
-  Data: Room | Message;
+  type: "Room" | "Message";
+  data: Room | Message;
 } | null;
 
 type Room = {

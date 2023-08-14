@@ -1,4 +1,4 @@
-/** @type {import('tailwindcss').Config} */
+/** @type {import("tailwindcss").Config} */
 export default {
   content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"],
   theme: {
@@ -13,7 +13,7 @@ export default {
         complement: "#082934",
       },
       boxShadow: {
-        dup: "15px 15px 0px #01131988",
+        drop: "0 4px 4px 1px rgba(0, 0, 0, 0.3)",
       },
     },
     fontFamily: {

@@ -5,7 +5,7 @@ const SubRooms = () => {
   ];
 
   return (
-    <div className="bg-complement flex flex-col flex-[0.3] p-3 shadow-dup">
+    <div className="bg-background flex flex-col flex-[0.3] p-3">
       <h1>Sub Rooms</h1>
       {rooms.map((v, i) => (
         <a

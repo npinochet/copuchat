@@ -1,14 +1,12 @@
 import Content from "./content";
-import Footer from "./footer";
-import NavBar from "./navbar";
+import SideBar from "./sidebar";
 
 const Chat = () => {
   return (
-    <>
-      <NavBar />
+    <div className="flex h-full">
+      <SideBar />
       <Content />
-      <Footer />
-    </>
+    </div>
   );
 };
 
