@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 
 	redigo "github.com/gomodule/redigo/redis"
@@ -99,12 +100,19 @@ func Handler(roomName, userName string) (websocket.Handler, error) {
 }
 
 func handleMessage(hub *Hub, message *redis.Message, roomName string) error {
-	if err := redis.AddMessage(message, roomName); err != nil {
+	newRoom, err := redis.AddMessage(message, roomName)
+	if err != nil {
 		return fmt.Errorf("ws: error adding message: to redis %w", err)
 	}
-
 	if err := hub.Broadcast(message, nil); err != nil {
 		return fmt.Errorf("ws: error broadcasting: %w", err)
+	}
+	if newRoom {
+		path := strings.Split(roomName, "/")
+		parentRoom := strings.Join(path[:len(path)-1], "/")
+		if err := GetHub(parentRoom).Broadcast(message, nil); err != nil {
+			return fmt.Errorf("ws: error broadcasting to parent room: %w", err)
+		}
 	}
 
 	return nil

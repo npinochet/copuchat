@@ -134,7 +134,7 @@ func LenActiveMembers(roomName string) (int, error) {
 	return length, nil
 }
 
-func AddMessage(message *Message, roomName string) error {
+func AddMessage(message *Message, roomName string) (bool, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
@@ -143,24 +143,23 @@ func AddMessage(message *Message, roomName string) error {
 	))
 	newRoom := errors.Is(err, redis.ErrNil)
 	if err != nil && !newRoom {
-		return fmt.Errorf("redis: error, could not save message. %w", err)
+		return false, fmt.Errorf("redis: error, could not save message. %w", err)
 	}
 	message.Timestamp, err = strconv.ParseInt(strings.Split(key, "-")[0], 10, 64)
 	if err != nil {
-		return fmt.Errorf("redis: error, could not parse given timestamp %s: %w", key, err)
+		return false, fmt.Errorf("redis: error, could not parse given timestamp %s: %w", key, err)
 	}
 	if newRoom {
-		// TODO: Only if parent room exists, if not send error.
 		if err := createRoom(message, roomName); err != nil {
-			return err
+			return false, err
 		}
 	}
 	_, err = conn.Do("HSET", activeUserKey(roomName), message.UserName, message.Timestamp)
 	if err != nil {
-		return fmt.Errorf("redis: error, could not register user activity. %w", err)
+		return false, fmt.Errorf("redis: error, could not register user activity. %w", err)
 	}
 
-	return nil
+	return newRoom, nil
 }
 
 func AddRoom(roomName, topic, userName string) error {
@@ -174,7 +173,7 @@ func AddRoom(roomName, topic, userName string) error {
 		UserName: userName,
 		Text:     "Created Room " + topic + "!",
 	}
-	if err := AddMessage(message, roomName); err != nil {
+	if _, err := AddMessage(message, roomName); err != nil {
 		return err
 	}
 	if _, err := conn.Do("SET", topicKey(roomName), topic); err != nil {
@@ -199,11 +198,20 @@ func createRoom(message *Message, roomName string) error {
 	conn := pool.Get()
 	defer conn.Close()
 
-	_, err := conn.Do("XADD", chatKey(roomName), "MAXLEN", "~", RoomMaxMessages, "*", "user", message.UserName, "text", message.Text)
+	path := strings.Split(roomName, "/")
+	parentRoom := strings.Join(path[:len(path)-1], "/")
+	exists, err := redis.Bool(conn.Do("EXISTS", parentRoom))
+	if err != nil {
+		return fmt.Errorf("redis: error, could not check if parent exists. %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("redis: error, parent room does not exists. %w", err)
+	}
+
+	_, err = conn.Do("XADD", chatKey(roomName), "MAXLEN", "~", RoomMaxMessages, "*", "user", message.UserName, "text", message.Text)
 	if err != nil {
 		return fmt.Errorf("redis: error, could not save first message. %w", err)
 	}
-	// TODO: Maybe broadcast "new room" on parent
 
 	return nil
 }

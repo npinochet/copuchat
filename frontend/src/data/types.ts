@@ -14,3 +14,9 @@ type Message = {
   text: string;
   timestamp: number;
 };
+
+type RoomPreview = {
+  name: string;
+  room: string;
+  activeMembers: number;
+};
