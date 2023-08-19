@@ -24,6 +24,8 @@ const SubRooms = () => {
           </div>
         </a>
       ))}
+      <div className="flex-1"></div>
+      <h1 className="text-sm text-right">© Copuchat 2023</h1>
     </div>
   );
 };

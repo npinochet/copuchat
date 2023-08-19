@@ -13,9 +13,7 @@ function parseNavParams(): navLink[] {
   const { "*": room } = useParams();
   let navigation = [{ text: "home", href: "/chat" }];
   const rooms = room?.split("/");
-  if (rooms === undefined || rooms[0] === "") {
-    return navigation;
-  }
+  if (rooms === undefined || rooms[0] === "") return navigation;
   return navigation.concat(
     rooms.map((v, i) => ({
       text: v,
@@ -97,7 +95,7 @@ const TopicHeader = () => {
               // TODO: Send request to change topic
               await fetch(`https://127.0.0.1:8090/${room}/topic`, {
                 method: "POST",
-                body: JSON.stringify({ topic: newTopic }),
+                body: newTopic,
               });
               setTopic(newTopic);
             }}

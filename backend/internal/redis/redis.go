@@ -85,7 +85,7 @@ func GetRoom(roomName string) (*Room, error) {
 	return room, nil
 }
 
-func GetActiveMembers(roomName string) ([]string, error) {
+func GetAndUpdateActiveMembers(roomName string) ([]string, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
@@ -160,27 +160,6 @@ func AddMessage(message *Message, roomName string) (bool, error) {
 	}
 
 	return newRoom, nil
-}
-
-func AddRoom(roomName, topic, userName string) error {
-	if topic, _ := getRoomTopic(roomName); topic != "" {
-		return errors.New("room already exists")
-	}
-	conn := pool.Get()
-	defer conn.Close()
-
-	message := &Message{
-		UserName: userName,
-		Text:     "Created Room " + topic + "!",
-	}
-	if _, err := AddMessage(message, roomName); err != nil {
-		return err
-	}
-	if _, err := conn.Do("SET", topicKey(roomName), topic); err != nil {
-		return fmt.Errorf("redis: error, could not set topic for %s. %w", roomName, err)
-	}
-
-	return nil
 }
 
 func SetTopic(roomName, topic string) error {
