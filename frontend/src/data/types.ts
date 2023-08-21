@@ -18,5 +18,5 @@ type Message = {
 type RoomPreview = {
   name: string;
   room: string;
-  activeMembers: number;
+  activeUsersLength: number;
 };

@@ -4,7 +4,7 @@ import { drawerAtom, myRoomsAtom } from "../../data/atoms";
 import { useAtom } from "jotai";
 import { Link, useParams } from "react-router-dom";
 
-const RoomButton = ({ name, room, activeMembers }: RoomPreview) => {
+const RoomButton = ({ name, room, activeUsersLength }: RoomPreview) => {
   const { "*": thisRoom } = useParams();
   const [rooms, setRooms] = useAtom(myRoomsAtom);
 
@@ -16,7 +16,7 @@ const RoomButton = ({ name, room, activeMembers }: RoomPreview) => {
       className={`px-4 py-1 ${
         selected || fresh
           ? "bg-secondary"
-          : "bg-background hover:bg-secondary hover:cursor-pointer "
+          : "bg-background hover:bg-secondary hover:cursor-pointer"
       }`}
       to={`/chat/${room}`}
     >
@@ -25,7 +25,7 @@ const RoomButton = ({ name, room, activeMembers }: RoomPreview) => {
           <div
             className="flex items-center w-8 h-8 mr-2"
             onClick={() =>
-              setRooms((state) => [...state, { name, room, activeMembers }])
+              setRooms((state) => [...state, { name, room, activeUsersLength }])
             }
           >
             <AddIcon />
@@ -36,16 +36,16 @@ const RoomButton = ({ name, room, activeMembers }: RoomPreview) => {
             className="text-xs text-slate-300 overflow-hidden whitespace-nowrap text-ellipsis text-left"
             style={{ direction: "rtl" }}
           >
-            <bdi>{room}</bdi>
+            <bdi>{room || "home"}</bdi>
           </p>
           <p className="overflow-hidden whitespace-nowrap text-ellipsis">
-            {name}
+            {name || "home"}
           </p>
         </div>
         <div className="mx-3" />
         <p className="flex items-center text-center">
           <span className="text-green-700 text-sm mr-1">●</span>
-          {activeMembers}
+          {activeUsersLength}
         </p>
       </div>
     </Link>
@@ -58,8 +58,8 @@ const SideBar = () => {
   const [rooms, setRooms] = useAtom(myRoomsAtom);
   const thisRoom: RoomPreview = {
     room: thisRoomPath || "",
-    name: thisRoomPath?.split("/")[0] || "",
-    activeMembers: 10,
+    name: thisRoomPath?.split("/")?.pop() || "",
+    activeUsersLength: 10,
   };
   const fresh = rooms.find((r) => r.room === thisRoom.room) === undefined;
 

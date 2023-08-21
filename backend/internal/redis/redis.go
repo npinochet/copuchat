@@ -19,10 +19,10 @@ const (
 )
 
 var (
-	RoomMaxMessages       = 200
-	InactiveMemberTimeout = 1 * time.Hour
-	TestOnBorrowTimeout   = 1 * time.Minute
-	pool                  *redis.Pool
+	RoomMaxMessages     = 200
+	InactiveUserTimeout = 1 * time.Hour
+	TestOnBorrowTimeout = 1 * time.Minute
+	pool                *redis.Pool
 )
 
 func init() {
@@ -62,6 +62,10 @@ func GetRoom(roomName string) (*Room, error) {
 	if err != nil && !errors.Is(err, redis.ErrNil) {
 		return nil, err
 	}
+	activeLength, err := LenActiveUsers(roomName)
+	if err != nil {
+		return nil, err
+	}
 	conn := pool.Get()
 	defer conn.Close()
 
@@ -70,7 +74,12 @@ func GetRoom(roomName string) (*Room, error) {
 		return nil, fmt.Errorf("redis: error, could not get messages for %s: %w", roomName, err)
 	}
 
-	room := &Room{Name: roomName, Topic: topic, Messages: make([]Message, len(values))}
+	room := &Room{
+		Name:              roomName,
+		Topic:             topic,
+		ActiveUsersLength: activeLength,
+		Messages:          make([]Message, len(values)),
+	}
 	for i, entryAny := range values {
 		entry, _ := entryAny.([]any)
 		key, _ := entry[0].([]byte)
@@ -85,7 +94,7 @@ func GetRoom(roomName string) (*Room, error) {
 	return room, nil
 }
 
-func GetAndUpdateActiveMembers(roomName string) ([]string, error) {
+func GetAndUpdateActiveUsers(roomName string) ([]string, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
@@ -96,7 +105,7 @@ func GetAndUpdateActiveMembers(roomName string) ([]string, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
-	userNames, deleteArgs := make([]string, len(values)/2), make([]any, len(values)/2)
+	userNames, deleteArgs := make([]string, len(values)/2), make([]any, len(values)/2+1)
 	deleteArgs[0] = activeUserKey(roomName)
 	userNamesLen, deleteArgsLen := 0, 1
 	for i := 0; i < len(values)/2; i++ {
@@ -105,8 +114,8 @@ func GetAndUpdateActiveMembers(roomName string) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("redis: error, could not parse timestamp. %w", err)
 		}
-		if time.Since(time.UnixMilli(milli)) > InactiveMemberTimeout {
-			deleteArgs[deleteArgsLen] = userName
+		if time.Since(time.UnixMilli(milli)) > InactiveUserTimeout {
+			deleteArgs[deleteArgsLen] = userName // index out of range [2] with length 2 goroutine 23 [running]:
 			deleteArgsLen++
 		} else {
 			userNames[userNamesLen] = userName
@@ -122,12 +131,12 @@ func GetAndUpdateActiveMembers(roomName string) ([]string, error) {
 	return userNames[:userNamesLen], nil
 }
 
-func LenActiveMembers(roomName string) (int, error) {
+func LenActiveUsers(roomName string) (int, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
 	length, err := redis.Int(conn.Do("HLEN", activeUserKey(roomName)))
-	if err != nil {
+	if err != nil && !errors.Is(err, redis.ErrNil) {
 		return 0, fmt.Errorf("redis: error, could not count user activity. %w", err)
 	}
 
@@ -145,13 +154,15 @@ func AddMessage(message *Message, roomName string) (bool, error) {
 	if err != nil && !newRoom {
 		return false, fmt.Errorf("redis: error, could not save message. %w", err)
 	}
-	message.Timestamp, err = strconv.ParseInt(strings.Split(key, "-")[0], 10, 64)
-	if err != nil {
-		return false, fmt.Errorf("redis: error, could not parse given timestamp %s: %w", key, err)
-	}
+
 	if newRoom {
 		if err := createRoom(message, roomName); err != nil {
 			return false, err
+		}
+	} else {
+		message.Timestamp, err = strconv.ParseInt(strings.Split(key, "-")[0], 10, 64)
+		if err != nil {
+			return false, fmt.Errorf("redis: error, could not parse given timestamp %s: %w", key, err)
 		}
 	}
 	_, err = conn.Do("HSET", activeUserKey(roomName), message.UserName, message.Timestamp)
@@ -162,7 +173,42 @@ func AddMessage(message *Message, roomName string) (bool, error) {
 	return newRoom, nil
 }
 
+func GetSubRooms(roomName string) ([]Room, error) {
+	conn := pool.Get()
+	defer conn.Close()
+
+	// TODO: Do not use KEYS, use a set `subs:roomName`
+	subRooms, err := redis.Strings(conn.Do("KEYS", fmt.Sprintf("%s/*", chatKey(roomName))))
+	if err != nil {
+		return nil, fmt.Errorf("redis: error, could not get sub room keys. %w", err)
+	}
+	if len(subRooms) == 0 {
+		return nil, nil
+	}
+	topicKeys := make([]any, len(subRooms))
+	for i, subRoom := range subRooms {
+		subRooms[i] = strings.Split(subRoom, ":")[1]
+		topicKeys[i] = topicKey(subRooms[i])
+	}
+	topics, err := redis.Strings(conn.Do("MGET", topicKeys...))
+	if err != nil {
+		return nil, fmt.Errorf("redis: error, could not get sub room topics. %w", err)
+	}
+	rooms := make([]Room, len(subRooms))
+	for i := range rooms {
+		var length int
+		length, err = LenActiveUsers(subRooms[i])
+		if err != nil {
+			return nil, fmt.Errorf("redis: error, could not get sub users count. %w", err)
+		}
+		rooms[i] = Room{Name: subRooms[i], Topic: topics[i], ActiveUsersLength: length}
+	}
+
+	return rooms, nil
+}
+
 func SetTopic(roomName, topic string) error {
+	// TODO: Check if room exists first
 	conn := pool.Get()
 	defer conn.Close()
 
@@ -179,17 +225,22 @@ func createRoom(message *Message, roomName string) error {
 
 	path := strings.Split(roomName, "/")
 	parentRoom := strings.Join(path[:len(path)-1], "/")
-	exists, err := redis.Bool(conn.Do("EXISTS", parentRoom))
+	exists, err := redis.Bool(conn.Do("EXISTS", chatKey(parentRoom)))
 	if err != nil {
 		return fmt.Errorf("redis: error, could not check if parent exists. %w", err)
 	}
 	if !exists {
-		return fmt.Errorf("redis: error, parent room does not exists. %w", err)
+		return fmt.Errorf("redis: error, parent room does not exists for %s. %w", roomName, err)
 	}
-
-	_, err = conn.Do("XADD", chatKey(roomName), "MAXLEN", "~", RoomMaxMessages, "*", "user", message.UserName, "text", message.Text)
+	key, err := redis.String(conn.Do(
+		"XADD", chatKey(roomName), "MAXLEN", "~", RoomMaxMessages, "*", "user", message.UserName, "text", message.Text,
+	))
 	if err != nil {
 		return fmt.Errorf("redis: error, could not save first message. %w", err)
+	}
+	message.Timestamp, err = strconv.ParseInt(strings.Split(key, "-")[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("redis: error, could not parse given timestamp from new room %s: %w", key, err)
 	}
 
 	return nil

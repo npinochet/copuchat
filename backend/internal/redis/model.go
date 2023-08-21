@@ -7,7 +7,8 @@ type Message struct {
 }
 
 type Room struct {
-	Name     string    `json:"name"`
-	Topic    string    `json:"topic"`
-	Messages []Message `json:"messages"`
+	Name              string    `json:"name"`
+	Topic             string    `json:"topic"`
+	ActiveUsersLength int       `json:"activeUsersLength"`
+	Messages          []Message `json:"messages"`
 }

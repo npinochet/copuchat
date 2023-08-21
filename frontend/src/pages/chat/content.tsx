@@ -56,7 +56,7 @@ const TopicHeader = () => {
   const [newTopic, setNewTopic] = useState("");
   const topicRef = useRef<HTMLParagraphElement>(null);
   const { lastJsonMessage } = useWebSocket<WebSocketEvent>(
-    `ws://127.0.0.1:8090/ws/${room}?userName=${userName}`,
+    `ws://localhost:8090/ws/${room}?userName=${userName}`,
     {
       share: true,
       retryOnError: true,
@@ -93,7 +93,7 @@ const TopicHeader = () => {
               setEditingTopic(false);
               if (newTopic === "") return;
               // TODO: Send request to change topic
-              await fetch(`https://127.0.0.1:8090/${room}/topic`, {
+              await fetch(`http://localhost:8090/topic/${room}`, {
                 method: "POST",
                 body: newTopic,
               });
@@ -155,7 +155,7 @@ const Content = () => {
           <a>User Name</a>
         </div>
       </div>
-      <div className="flex h-full">
+      <div className="flex flex-col md:flex-row h-full">
         <ChatBox />
         <SubRooms />
       </div>

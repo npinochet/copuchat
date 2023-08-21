@@ -95,7 +95,7 @@ const ChatBox = () => {
   const boxRef = useRef<HTMLDivElement>(null);
   const { sendJsonMessage, lastJsonMessage, readyState } =
     useWebSocket<WebSocketEvent>(
-      `ws://127.0.0.1:8090/ws/${room}?userName=${userName}`,
+      `ws://localhost:8090/ws/${room}?userName=${userName}`,
       {
         share: true,
         retryOnError: true,
@@ -111,7 +111,7 @@ const ChatBox = () => {
     }
     if (lastJsonMessage.type === "Room") {
       const messages = (lastJsonMessage.data as Room)?.messages;
-      if (messages !== undefined) setChat((chat) => [...chat, ...messages]);
+      if (messages !== undefined) setChat((chat) => messages);
     }
   }, [lastJsonMessage, setChat]);
 
@@ -132,7 +132,7 @@ const ChatBox = () => {
   };
 
   return (
-    <div className="bg-complement flex flex-col p-4 flex-1">
+    <div className="bg-complement flex flex-col p-4 flex-1 min-h-full">
       <div className="overflow-y-scroll flex-1 basis-0" ref={boxRef}>
         <div className="flex flex-col justify-end flex-1">
           {chat.map((v, i) => (

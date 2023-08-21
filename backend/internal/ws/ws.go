@@ -4,6 +4,7 @@ import (
 	"copuchat/internal/redis"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"strings"
 	"sync"
@@ -84,7 +85,9 @@ func Handler(roomName, userName string) (websocket.Handler, error) {
 		for {
 			var message *redis.Message
 			if err := websocket.JSON.Receive(conn, &message); err != nil {
-				log.Printf("ws: error reading conn: %s\n", err)
+				if !errors.Is(err, io.EOF) {
+					log.Printf("ws: error reading conn: %s\n", err)
+				}
 
 				break
 			}
@@ -94,6 +97,7 @@ func Handler(roomName, userName string) (websocket.Handler, error) {
 			message.UserName = userName
 			if err := handleMessage(hub, message, roomName); err != nil {
 				log.Printf("ws: error handling message: %s\n", err)
+				// TODO: Send error message somehow
 			}
 		}
 	}, nil
