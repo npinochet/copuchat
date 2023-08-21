@@ -1,5 +1,6 @@
 import { CheckIcon, DrawerIcon, EditIcon, XIcon } from "../../assets/icons";
 import { drawerAtom, userNameAtom } from "../../data/atoms";
+import { Room, WebSocketEvent } from "../../data/types";
 import ChatBox from "./chatbox";
 import SubRooms from "./subrooms";
 import { useAtom, useAtomValue } from "jotai";

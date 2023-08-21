@@ -1,4 +1,5 @@
 import { userNameAtom } from "../../data/atoms";
+import { Message, Room, WebSocketEvent } from "../../data/types";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import Linkify from "react-linkify";

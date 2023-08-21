@@ -1,6 +1,7 @@
 import { AddIcon, DrawerIcon } from "../../assets/icons";
 import logo from "../../assets/logo.svg";
 import { drawerAtom, myRoomsAtom } from "../../data/atoms";
+import { RoomPreview } from "../../data/types";
 import { useAtom } from "jotai";
 import { Link, useParams } from "react-router-dom";
 

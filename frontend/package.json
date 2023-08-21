@@ -2,11 +2,14 @@
   "name": "copuchat",
   "private": true,
   "version": "0.0.0",
+  "homepage": "https://npinochet.github.io/copuchat",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "autoprefixer": "^10.4.14",
@@ -27,6 +30,7 @@
     "@types/react-dom": "^18.0.10",
     "@types/react-linkify": "^1.0.1",
     "@vitejs/plugin-react": "^3.1.0",
+    "gh-pages": "^6.0.0",
     "prettier": "2.8.4",
     "typescript": "^4.9.3",
     "vite": "^4.1.0"

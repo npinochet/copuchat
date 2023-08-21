@@ -1,4 +1,5 @@
 import { Spinner } from "../../assets/icons";
+import { RoomPreview } from "../../data/types";
 import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useParams } from "react-router-dom";

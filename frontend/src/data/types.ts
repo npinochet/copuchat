@@ -1,21 +1,21 @@
-type WebSocketEvent = {
+export type WebSocketEvent = {
   type: "Room" | "Message";
   data: Room | Message;
 } | null;
 
-type Room = {
+export type Room = {
   name: string;
   topic: string;
   messages: Message[];
 };
 
-type Message = {
+export type Message = {
   userName: string;
   text: string;
   timestamp: number;
 };
 
-type RoomPreview = {
+export type RoomPreview = {
   name: string;
   room: string;
   activeUsersLength: number;

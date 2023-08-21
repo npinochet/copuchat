@@ -1,3 +1,4 @@
+import { RoomPreview } from "./types";
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
