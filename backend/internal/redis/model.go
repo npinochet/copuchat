@@ -6,9 +6,7 @@ type Message struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
-type Room struct {
-	Name              string    `json:"name"`
-	Topic             string    `json:"topic"`
-	ActiveUsersLength int       `json:"activeUsersLength"`
-	Messages          []Message `json:"messages"`
+type ActiveUsersLen struct {
+	RoomName       string `json:"roomName"`
+	ActiveUsersLen int    `json:"activeUsersLength"`
 }

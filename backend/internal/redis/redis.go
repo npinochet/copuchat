@@ -13,14 +13,18 @@ import (
 )
 
 const (
-	DefaultURL  = "localhost:6379"
-	idleTimeout = 5 * time.Minute
-	maxIdle     = 10
+	DefaultURL           = "localhost:6379"
+	idleTimeout          = 5 * time.Minute
+	maxIdle              = 10
+	hourMinuteTimeLayout = "15:04"
 )
 
 var (
 	RoomMaxMessages     = 200
+	TopSubRoomsMaxSize  = 100
 	InactiveUserTimeout = 1 * time.Hour
+	InactiveWindowSize  = InactiveUserTimeout / 2
+
 	TestOnBorrowTimeout = 1 * time.Minute
 	pool                *redis.Pool
 )
@@ -53,19 +57,12 @@ func init() {
 	}
 }
 
-func chatKey(roomName string) string       { return "chat:" + roomName }
-func topicKey(roomName string) string      { return "roomTopic:" + roomName }
-func activeUserKey(roomName string) string { return "chatters:" + roomName }
+func chatKey(roomName string) string               { return "chat:" + roomName }
+func topicKey(roomName string) string              { return "topic:" + roomName }
+func subRoomsKey(roomName string) string           { return "subs:" + roomName }
+func activeUserKey(roomName, window string) string { return "chatters:" + roomName + window }
 
-func GetRoom(roomName string) (*Room, error) {
-	topic, err := getRoomTopic(roomName)
-	if err != nil && !errors.Is(err, redis.ErrNil) {
-		return nil, err
-	}
-	activeLength, err := LenActiveUsers(roomName)
-	if err != nil {
-		return nil, err
-	}
+func GetLastMessages(roomName string) ([]Message, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
@@ -74,12 +71,7 @@ func GetRoom(roomName string) (*Room, error) {
 		return nil, fmt.Errorf("redis: error, could not get messages for %s: %w", roomName, err)
 	}
 
-	room := &Room{
-		Name:              roomName,
-		Topic:             topic,
-		ActiveUsersLength: activeLength,
-		Messages:          make([]Message, len(values)),
-	}
+	messages := make([]Message, len(values))
 	for i, entryAny := range values {
 		entry, _ := entryAny.([]any)
 		key, _ := entry[0].([]byte)
@@ -88,59 +80,10 @@ func GetRoom(roomName string) (*Room, error) {
 			return nil, fmt.Errorf("redis: error, could not parse timestamp %s: %w", key, err)
 		}
 		sm, _ := redis.StringMap(entry[1], nil)
-		room.Messages[len(values)-1-i] = Message{sm["user"], sm["text"], timestamp}
+		messages[len(values)-1-i] = Message{sm["user"], sm["text"], timestamp}
 	}
 
-	return room, nil
-}
-
-func GetAndUpdateActiveUsers(roomName string) ([]string, error) {
-	conn := pool.Get()
-	defer conn.Close()
-
-	values, err := redis.Strings(conn.Do("HGETALL", activeUserKey(roomName)))
-	if err != nil {
-		return nil, fmt.Errorf("redis: error, could not get user activity. %w", err)
-	}
-	if len(values) == 0 {
-		return nil, nil
-	}
-	userNames, deleteArgs := make([]string, len(values)/2), make([]any, len(values)/2+1)
-	deleteArgs[0] = activeUserKey(roomName)
-	userNamesLen, deleteArgsLen := 0, 1
-	for i := 0; i < len(values)/2; i++ {
-		userName, stamp := values[i*2], values[i*2+1]
-		milli, err := strconv.ParseInt(stamp, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("redis: error, could not parse timestamp. %w", err)
-		}
-		if time.Since(time.UnixMilli(milli)) > InactiveUserTimeout {
-			deleteArgs[deleteArgsLen] = userName // index out of range [2] with length 2 goroutine 23 [running]:
-			deleteArgsLen++
-		} else {
-			userNames[userNamesLen] = userName
-			userNamesLen++
-		}
-	}
-	if deleteArgsLen > 1 {
-		if _, err := conn.Do("HDEL", deleteArgs[:deleteArgsLen]...); err != nil {
-			return nil, fmt.Errorf("redis: error, could not delete inactive users. %w", err)
-		}
-	}
-
-	return userNames[:userNamesLen], nil
-}
-
-func LenActiveUsers(roomName string) (int, error) {
-	conn := pool.Get()
-	defer conn.Close()
-
-	length, err := redis.Int(conn.Do("HLEN", activeUserKey(roomName)))
-	if err != nil && !errors.Is(err, redis.ErrNil) {
-		return 0, fmt.Errorf("redis: error, could not count user activity. %w", err)
-	}
-
-	return length, nil
+	return messages, nil
 }
 
 func AddMessage(message *Message, roomName string) (bool, error) {
@@ -152,7 +95,7 @@ func AddMessage(message *Message, roomName string) (bool, error) {
 	))
 	newRoom := errors.Is(err, redis.ErrNil)
 	if err != nil && !newRoom {
-		return false, fmt.Errorf("redis: error, could not save message. %w", err)
+		return false, fmt.Errorf("redis: error, could not save message: %w", err)
 	}
 
 	if newRoom {
@@ -165,88 +108,87 @@ func AddMessage(message *Message, roomName string) (bool, error) {
 			return false, fmt.Errorf("redis: error, could not parse given timestamp %s: %w", key, err)
 		}
 	}
-	_, err = conn.Do("HSET", activeUserKey(roomName), message.UserName, message.Timestamp)
-	if err != nil {
-		return false, fmt.Errorf("redis: error, could not register user activity. %w", err)
-	}
 
-	return newRoom, nil
+	return newRoom, registerUserActivity(roomName, message)
 }
 
-func GetSubRooms(roomName string) ([]Room, error) {
+func GetActiveUsersLen(roomName string) (int, error) {
+	return updateUserActivity(roomName)
+}
+
+func GetActiveUsers(roomName string) ([]string, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
-	// TODO: Do not use KEYS, use a set `subs:roomName`
-	subRooms, err := redis.Strings(conn.Do("KEYS", fmt.Sprintf("%s/*", chatKey(roomName))))
+	windows := int(InactiveUserTimeout / InactiveWindowSize)
+	keys := make([]any, windows)
+
+	now := time.Now().Truncate(InactiveWindowSize)
+	for i := 0; i < int(InactiveUserTimeout/InactiveWindowSize); i++ {
+		windowKey := now.Add(time.Duration(-i) * InactiveWindowSize).Format("15:04")
+		keys[i] = activeUserKey(roomName, windowKey)
+	}
+	userNames, err := redis.Strings(conn.Do("SUNION", keys...))
 	if err != nil {
-		return nil, fmt.Errorf("redis: error, could not get sub room keys. %w", err)
-	}
-	if len(subRooms) == 0 {
-		return nil, nil
-	}
-	topicKeys := make([]any, len(subRooms))
-	for i, subRoom := range subRooms {
-		subRooms[i] = strings.Split(subRoom, ":")[1]
-		topicKeys[i] = topicKey(subRooms[i])
-	}
-	topics, err := redis.Strings(conn.Do("MGET", topicKeys...))
-	if err != nil {
-		return nil, fmt.Errorf("redis: error, could not get sub room topics. %w", err)
-	}
-	rooms := make([]Room, len(subRooms))
-	for i := range rooms {
-		var length int
-		length, err = LenActiveUsers(subRooms[i])
-		if err != nil {
-			return nil, fmt.Errorf("redis: error, could not get sub users count. %w", err)
-		}
-		rooms[i] = Room{Name: subRooms[i], Topic: topics[i], ActiveUsersLength: length}
+		return nil, fmt.Errorf("redis: error, could not get active users on room %s: %w", roomName, err)
 	}
 
-	return rooms, nil
+	return userNames, nil
+}
+
+func GetTopSubRooms(roomName string) ([]ActiveUsersLen, error) {
+	conn := pool.Get()
+	defer conn.Close()
+
+	subRoomNames, err := redis.Strings(conn.Do("ZRANGE", subRoomsKey(roomName), 0, -1)) // TODO: Check all? or some maybe max TopSubRoomsMaxSize?
+	if err != nil {
+		return nil, fmt.Errorf("redis: error, could not get %s sub room keys: %w", roomName, err)
+	}
+	if len(subRoomNames) == 0 {
+		return nil, nil
+	}
+
+	for _, subRoom := range subRoomNames {
+		if _, err := updateUserActivity(subRoom); err != nil {
+			return nil, err
+		}
+	}
+	subRoomsStrings, err := redis.Strings(conn.Do("ZRANGE", subRoomsKey(roomName), 0, TopSubRoomsMaxSize, "REV", "WITHSCORES"))
+	if err != nil {
+		return nil, fmt.Errorf("redis: error, could not get %s top sub rooms: %w", roomName, err)
+	}
+
+	subRooms := make([]ActiveUsersLen, len(subRoomsStrings)/2)
+	for i := 0; i < len(subRoomsStrings); i += 2 {
+		subRooms[i].RoomName = subRoomsStrings[i]
+		subRooms[i].ActiveUsersLen, err = strconv.Atoi(subRoomsStrings[i+1])
+		if err != nil {
+			return nil, fmt.Errorf("redis: error, could not parse users len %s: %w", subRoomsStrings[i+1], err)
+		}
+	}
+
+	return subRooms, nil
 }
 
 func SetTopic(roomName, topic string) error {
-	// TODO: Check if room exists first
 	conn := pool.Get()
 	defer conn.Close()
 
-	if _, err := conn.Do("SET", topicKey(roomName), topic); err != nil {
-		return fmt.Errorf("redis: error, could not set topic for %s. %w", roomName, err)
-	}
-
-	return nil
-}
-
-func createRoom(message *Message, roomName string) error {
-	conn := pool.Get()
-	defer conn.Close()
-
-	path := strings.Split(roomName, "/")
-	parentRoom := strings.Join(path[:len(path)-1], "/")
-	exists, err := redis.Bool(conn.Do("EXISTS", chatKey(parentRoom)))
+	exists, err := redis.Bool(conn.Do("EXISTS", chatKey(roomName)))
 	if err != nil {
-		return fmt.Errorf("redis: error, could not check if parent exists. %w", err)
+		return fmt.Errorf("redis: error, could not check if room %s exists: %w", roomName, err)
 	}
 	if !exists {
-		return fmt.Errorf("redis: error, parent room does not exists for %s. %w", roomName, err)
+		return fmt.Errorf("redis: error, room %s does not exists can not set topic: %w", roomName, err)
 	}
-	key, err := redis.String(conn.Do(
-		"XADD", chatKey(roomName), "MAXLEN", "~", RoomMaxMessages, "*", "user", message.UserName, "text", message.Text,
-	))
-	if err != nil {
-		return fmt.Errorf("redis: error, could not save first message. %w", err)
-	}
-	message.Timestamp, err = strconv.ParseInt(strings.Split(key, "-")[0], 10, 64)
-	if err != nil {
-		return fmt.Errorf("redis: error, could not parse given timestamp from new room %s: %w", key, err)
+	if _, err := conn.Do("SET", topicKey(roomName), topic); err != nil {
+		return fmt.Errorf("redis: error, could not set topic for %s: %w", roomName, err)
 	}
 
 	return nil
 }
 
-func getRoomTopic(roomName string) (string, error) {
+func GetTopic(roomName string) (string, error) {
 	conn := pool.Get()
 	defer conn.Close()
 
@@ -256,4 +198,83 @@ func getRoomTopic(roomName string) (string, error) {
 	}
 
 	return topic, nil
+}
+
+func createRoom(message *Message, roomName string) error {
+	conn := pool.Get()
+	defer conn.Close()
+
+	rooms := strings.Split(roomName, "/")
+	parentRoom := strings.Join(rooms[:len(rooms)-1], "/")
+	exists, err := redis.Bool(conn.Do("EXISTS", chatKey(parentRoom)))
+	if err != nil {
+		return fmt.Errorf("redis: error, could not check if parent of %s exists: %w", roomName, err)
+	}
+	if !exists {
+		return fmt.Errorf("redis: error, parent room does not exists for %s: %w", roomName, err)
+	}
+	key, err := redis.String(conn.Do(
+		"XADD", chatKey(roomName), "MAXLEN", "~", RoomMaxMessages, "*", "user", message.UserName, "text", message.Text,
+	))
+	if err != nil {
+		return fmt.Errorf("redis: error, could not save first message: %w", err)
+	}
+	message.Timestamp, err = strconv.ParseInt(strings.Split(key, "-")[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("redis: error, could not parse given timestamp from new room %s: %w", key, err)
+	}
+	_, err = conn.Do("ZADD", subRoomsKey(parentRoom), 1, roomName)
+	if err != nil {
+		return fmt.Errorf("redis: error, could not set sub room %s as child: %w", roomName, err)
+	}
+
+	return nil
+}
+
+func updateUserActivity(roomName string) (int, error) {
+	conn := pool.Get()
+	defer conn.Close()
+
+	usersLen := 0
+	now := time.Now().Truncate(InactiveWindowSize)
+	for i := 0; i < int(InactiveUserTimeout/InactiveWindowSize); i++ {
+		windowKey := now.Add(time.Duration(-i) * InactiveWindowSize).Format("15:04")
+		windowLen, err := redis.Int(conn.Do("SCARD", activeUserKey(roomName, windowKey)))
+		if err != nil {
+			return 0, fmt.Errorf("redis: error, could not get active users length: %w", err)
+		}
+		usersLen += windowLen
+	}
+
+	rooms := strings.Split(roomName, "/")
+	parentRoom := strings.Join(rooms[:len(rooms)-1], "/")
+
+	if roomName != parentRoom {
+		_, err := conn.Do("ZADD", subRoomsKey(parentRoom), usersLen, roomName)
+		if err != nil {
+			return 0, fmt.Errorf("redis: error, could not update subs %s score: %w", roomName, err)
+		}
+	}
+
+	return usersLen, nil
+}
+
+func registerUserActivity(roomName string, message *Message) error {
+	conn := pool.Get()
+	defer conn.Close()
+
+	windowKey := time.UnixMilli(message.Timestamp).Truncate(InactiveWindowSize).Format(hourMinuteTimeLayout)
+	key := activeUserKey(roomName, windowKey)
+
+	_, err := conn.Do("SADD", activeUserKey(roomName, windowKey), message.UserName)
+	if err != nil {
+		return fmt.Errorf("redis: error, could not add member to set %s: %w", key, err)
+	}
+
+	_, err = conn.Do("PEXPIRE", key, InactiveWindowSize.Milliseconds(), "NX")
+	if err != nil {
+		return fmt.Errorf("redis: error, could not set expiration on %s: %w", key, err)
+	}
+
+	return nil
 }

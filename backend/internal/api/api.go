@@ -30,11 +30,7 @@ func wsRoomRoute(app *pocketbase.PocketBase) echo.Route {
 				return echo.NewHTTPError(http.StatusBadRequest, "missing userName")
 			}
 			roomName := c.PathParam("*")
-			handler, err := ws.Handler(roomName, userName)
-			if err != nil {
-				return err
-			}
-			handler.ServeHTTP(c.Response(), c.Request())
+			ws.Handler(roomName, userName).ServeHTTP(c.Response(), c.Request())
 
 			return nil
 		},
@@ -77,7 +73,7 @@ func getRoomActiveUsersRoute(app *pocketbase.PocketBase) echo.Route {
 		Path:   "/users/*",
 		Handler: func(c echo.Context) error {
 			roomName := c.PathParam("*")
-			userNames, err := redis.GetAndUpdateActiveUsers(roomName)
+			userNames, err := redis.GetActiveUsers(roomName)
 			if err != nil {
 				return err
 			}
@@ -96,12 +92,12 @@ func getSubRoomsRoute(app *pocketbase.PocketBase) echo.Route {
 		Path:   "/sub_rooms/*",
 		Handler: func(c echo.Context) error {
 			roomName := c.PathParam("*")
-			rooms, err := redis.GetSubRooms(roomName)
+			subRooms, err := redis.GetTopSubRooms(roomName)
 			if err != nil {
 				return err
 			}
 
-			return c.JSON(http.StatusOK, rooms)
+			return c.JSON(http.StatusOK, subRooms)
 		},
 		Middlewares: []echo.MiddlewareFunc{
 			apis.ActivityLogger(app),

@@ -1,5 +1,5 @@
 import { userNameAtom } from "../../data/atoms";
-import { Message, Room, WebSocketEvent } from "../../data/types";
+import { Message, WebSocketEvent } from "../../data/types";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import Linkify from "react-linkify";
@@ -110,9 +110,9 @@ const ChatBox = () => {
       const message = lastJsonMessage.data as Message;
       if (message?.text !== undefined) setChat((chat) => [...chat, message]);
     }
-    if (lastJsonMessage.type === "Room") {
-      const messages = (lastJsonMessage.data as Room)?.messages;
-      if (messages !== undefined) setChat((chat) => messages);
+    if (lastJsonMessage.type === "Messages") {
+      const messages = lastJsonMessage.data as Message[];
+      if (messages !== undefined) setChat(messages);
     }
   }, [lastJsonMessage, setChat]);
 

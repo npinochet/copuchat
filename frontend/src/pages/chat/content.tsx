@@ -1,6 +1,6 @@
 import { CheckIcon, DrawerIcon, EditIcon, XIcon } from "../../assets/icons";
 import { drawerAtom, userNameAtom } from "../../data/atoms";
-import { Room, WebSocketEvent } from "../../data/types";
+import { WebSocketEvent } from "../../data/types";
 import ChatBox from "./chatbox";
 import SubRooms from "./subrooms";
 import { useAtom, useAtomValue } from "jotai";
@@ -67,8 +67,8 @@ const TopicHeader = () => {
 
   useEffect(() => {
     if (lastJsonMessage == null) return;
-    if (lastJsonMessage.type !== "Room") return;
-    const roomTopic = (lastJsonMessage.data as Room)?.topic;
+    if (lastJsonMessage.type !== "Topic") return;
+    const roomTopic = lastJsonMessage.data as string;
     if (roomTopic) setTopic(roomTopic);
   }, [lastJsonMessage, setTopic, room]);
 

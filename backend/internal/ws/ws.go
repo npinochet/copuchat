@@ -14,7 +14,7 @@ import (
 )
 
 type Event struct {
-	Type string `json:"type"`
+	Type string `json:"type"` // Can be: Messages, Message or Topic.
 	Data any    `json:"data"`
 }
 
@@ -57,12 +57,7 @@ func (h *Hub) Broadcast(message *redis.Message, except []string) error {
 	return nil
 }
 
-func Handler(roomName, userName string) (websocket.Handler, error) {
-	room, err := redis.GetRoom(roomName)
-	if err != nil && !errors.Is(err, redigo.ErrNil) {
-		return nil, fmt.Errorf("ws: error getting room: %w", err)
-	}
-
+func Handler(roomName, userName string) websocket.Handler {
 	return func(conn *websocket.Conn) {
 		defer conn.Close()
 
@@ -78,8 +73,8 @@ func Handler(roomName, userName string) (websocket.Handler, error) {
 				delete(Hubs, roomName)
 			}
 		}()
-		if err := websocket.JSON.Send(conn, Event{Type: "Room", Data: room}); err != nil {
-			log.Printf("ws: error sending room: %s\n", err)
+		if err := sendInitialData(conn, roomName); err != nil {
+			log.Printf("%s\n", err)
 		}
 
 		for {
@@ -100,7 +95,27 @@ func Handler(roomName, userName string) (websocket.Handler, error) {
 				// TODO: Send error message somehow
 			}
 		}
-	}, nil
+	}
+}
+
+func sendInitialData(conn *websocket.Conn, roomName string) error {
+	messages, err := redis.GetLastMessages(roomName)
+	if err != nil && !errors.Is(err, redigo.ErrNil) {
+		return fmt.Errorf("ws: error getting room messages: %w", err)
+	}
+	topic, err := redis.GetTopic(roomName)
+	if err != nil && !errors.Is(err, redigo.ErrNil) {
+		return fmt.Errorf("ws: error getting room topic: %w", err)
+	}
+
+	if err := websocket.JSON.Send(conn, Event{Type: "Messages", Data: messages}); err != nil {
+		return fmt.Errorf("ws: error sending room messages: %w", err)
+	}
+	if err := websocket.JSON.Send(conn, Event{Type: "Topic", Data: topic}); err != nil {
+		return fmt.Errorf("ws: error sending room topic: %w", err)
+	}
+
+	return nil
 }
 
 func handleMessage(hub *Hub, message *redis.Message, roomName string) error {

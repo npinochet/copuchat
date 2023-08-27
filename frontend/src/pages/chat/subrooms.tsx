@@ -1,13 +1,17 @@
 import { Spinner } from "../../assets/icons";
-import { RoomPreview } from "../../data/types";
 import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useParams } from "react-router-dom";
 
+type SubRoomEntry = {
+  roomName: string;
+  activeUsersLength: number;
+};
+
 const SubRooms = () => {
   const { "*": room } = useParams();
   const [newSubRoom, setNewSubRoom] = useState("");
-  const { isLoading, error, data } = useQuery<RoomPreview[]>({
+  const { isLoading, error, data } = useQuery<SubRoomEntry[]>({
     queryKey: ["subRooms"],
     queryFn: async () =>
       (await fetch(`http://localhost:8090/sub_rooms/${room}`)).json(),
@@ -38,14 +42,14 @@ const SubRooms = () => {
   }
 
   if (data || data === null) {
-    console.log(data);
+    console.log(data); // TODO: Remove
     body = (
       <>
         {data?.map((v, i) => (
           <Link
             key={i}
             className="bg-background px-4 py-1 hover:bg-secondary hover:cursor-pointer max-w-full md:w-[15rem]"
-            to={`/chat/${v.name}`}
+            to={`/chat/${v.roomName}`}
           >
             <div className="flex justify-between items-center">
               <div className="w-full overflow-hidden">
@@ -53,10 +57,10 @@ const SubRooms = () => {
                   className="text-xs text-slate-300 overflow-hidden whitespace-nowrap text-ellipsis text-left"
                   style={{ direction: "rtl" }}
                 >
-                  <bdi>{v.name || "home"}</bdi>
+                  <bdi>{v.roomName}</bdi>
                 </p>
                 <p className="overflow-hidden whitespace-nowrap text-ellipsis">
-                  {v.name.split("/").pop() || "home"}
+                  {v.roomName.split("/").pop()}
                 </p>
               </div>
               <div className="mx-3" />
