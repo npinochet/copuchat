@@ -1,5 +1,5 @@
 import { userNameAtom } from "../../data/atoms";
-import { Message, WebSocketEvent } from "../../data/types";
+import { Message, WebSocketResponse } from "../../data/types";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import Linkify from "react-linkify";
@@ -55,8 +55,10 @@ const TextEntry = ({
   return (
     <div className="flex items-center">
       <div className="flex flex-1">
-        <div className="md:min-w-[100px] text-right">
-          <b className={`block ${!showName && "md:hidden"}`}>{userName}</b>
+        <div className="md:min-w-[120px] text-right">
+          <b className={`block opacity-50 ${!showName && "md:hidden"}`}>
+            {userName}
+          </b>
         </div>
         <div className="mr-1 md:mx-2">
           <p className="block md:hidden"> : </p>
@@ -95,8 +97,8 @@ const ChatBox = () => {
   const inputRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const { sendJsonMessage, lastJsonMessage, readyState } =
-    useWebSocket<WebSocketEvent>(
-      `ws://localhost:8090/ws/${room}?userName=${userName}`,
+    useWebSocket<WebSocketResponse>(
+      `ws://localhost:8090/ws/${room}?userName=${encodeURIComponent(userName)}`,
       {
         share: true,
         retryOnError: true,
@@ -107,12 +109,12 @@ const ChatBox = () => {
   useEffect(() => {
     if (lastJsonMessage == null) return;
     if (lastJsonMessage.type === "Message") {
-      const message = lastJsonMessage.data as Message;
-      if (message?.text !== undefined) setChat((chat) => [...chat, message]);
+      const message = lastJsonMessage.data;
+      if (message?.text) setChat((chat) => [...chat, message]);
     }
     if (lastJsonMessage.type === "Messages") {
-      const messages = lastJsonMessage.data as Message[];
-      if (messages !== undefined) setChat(messages);
+      const messages = lastJsonMessage.data;
+      if (messages) setChat(messages);
     }
   }, [lastJsonMessage, setChat]);
 
@@ -133,7 +135,7 @@ const ChatBox = () => {
   };
 
   return (
-    <div className="bg-complement flex flex-col p-4 flex-1 min-h-full">
+    <section className="bg-complement flex flex-col p-4 flex-1 min-h-full">
       <div className="overflow-y-scroll flex-1 basis-0" ref={boxRef}>
         <div className="flex flex-col justify-end flex-1">
           {chat.map((v, i) => (
@@ -145,8 +147,8 @@ const ChatBox = () => {
           ))}
         </div>
       </div>
-      <div className="flex pt-3">
-        <div className="md:min-w-[108px] px-2 text-right text-xl">
+      <div className="flex items-center pt-3">
+        <div className="md:min-w-[128px] px-2 text-right text-md">
           {userName}
         </div>
         <div className="mx-1" />
@@ -157,7 +159,7 @@ const ChatBox = () => {
           disabled={readyState !== ReadyState.OPEN}
         />
       </div>
-    </div>
+    </section>
   );
 };
 

@@ -159,11 +159,11 @@ func GetTopSubRooms(roomName string) ([]ActiveUsersLen, error) {
 	}
 
 	subRooms := make([]ActiveUsersLen, len(subRoomsStrings)/2)
-	for i := 0; i < len(subRoomsStrings); i += 2 {
-		subRooms[i].RoomName = subRoomsStrings[i]
-		subRooms[i].ActiveUsersLen, err = strconv.Atoi(subRoomsStrings[i+1])
+	for i := 0; i < len(subRooms); i++ {
+		subRooms[i].RoomName = subRoomsStrings[i*2]
+		subRooms[i].ActiveUsersLen, err = strconv.Atoi(subRoomsStrings[i*2+1])
 		if err != nil {
-			return nil, fmt.Errorf("redis: error, could not parse users len %s: %w", subRoomsStrings[i+1], err)
+			return nil, fmt.Errorf("redis: error, could not parse users len %s: %w", subRoomsStrings[i*2+1], err)
 		}
 	}
 

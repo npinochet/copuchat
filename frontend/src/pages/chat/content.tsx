@@ -1,6 +1,13 @@
-import { CheckIcon, DrawerIcon, EditIcon, XIcon } from "../../assets/icons";
+import {
+  CheckIcon,
+  DotsIcon,
+  DrawerIcon,
+  EditIcon,
+  XIcon,
+} from "../../assets/icons";
 import { drawerAtom, userNameAtom } from "../../data/atoms";
-import { WebSocketEvent } from "../../data/types";
+import { WebSocketResponse } from "../../data/types";
+import Auth from "./auth";
 import ChatBox from "./chatbox";
 import SubRooms from "./subrooms";
 import { useAtom, useAtomValue } from "jotai";
@@ -56,8 +63,8 @@ const TopicHeader = () => {
   const [editingTopic, setEditingTopic] = useState(false);
   const [newTopic, setNewTopic] = useState("");
   const topicRef = useRef<HTMLParagraphElement>(null);
-  const { lastJsonMessage } = useWebSocket<WebSocketEvent>(
-    `ws://localhost:8090/ws/${room}?userName=${userName}`,
+  const { lastJsonMessage } = useWebSocket<WebSocketResponse>(
+    `ws://localhost:8090/ws/${room}?userName=${encodeURIComponent(userName)}`,
     {
       share: true,
       retryOnError: true,
@@ -66,10 +73,9 @@ const TopicHeader = () => {
   );
 
   useEffect(() => {
-    if (lastJsonMessage == null) return;
-    if (lastJsonMessage.type !== "Topic") return;
-    const roomTopic = lastJsonMessage.data as string;
-    if (roomTopic) setTopic(roomTopic);
+    if (lastJsonMessage == null || lastJsonMessage.type !== "Topic") return;
+    const { data } = lastJsonMessage;
+    if (data) setTopic(data);
   }, [lastJsonMessage, setTopic, room]);
 
   return (
@@ -126,10 +132,12 @@ const TopicHeader = () => {
 const Content = () => {
   const navigation = parseNavParams();
   const [drawerOpen, setDrawer] = useAtom(drawerAtom);
+  const [userName, setUserName] = useAtom(userNameAtom);
+  const [showUserOptions, setShowUserOptions] = useState(false);
 
   return (
-    <div className="flex flex-col bg-complement w-full">
-      <div
+    <main className="flex flex-col bg-complement w-full">
+      <header
         className="flex relative px-4 py-2 items-center shadow-drop"
         style={{ clipPath: "polygon(0 0, 100% 0, 100% 200%, 0 200%)" }}
       >
@@ -141,26 +149,53 @@ const Content = () => {
           <DrawerIcon />
         </button>
         <div>
-          <div className="flex whitespace-pre">
+          <nav className="flex whitespace-pre">
             {navigation.map((v, i) => (
               <Fragment key={i}>
                 <NavBarLink link={v} />
                 {navigation.length === i + 1 ? " " : " / "}
               </Fragment>
             ))}
-          </div>
+          </nav>
           <TopicHeader />
         </div>
         <div className="flex-1" />
-        <div className="font-medium no-underline text-right ml-4">
-          <a>User Name</a>
+        <div className="flex items-center font-medium no-underline text-right">
+          <h5 className="mx-2">{userName}</h5>
+          <button onClick={() => setShowUserOptions(!showUserOptions)}>
+            <div className="w-6 h-6">
+              <DotsIcon />
+            </div>
+          </button>
+          <div
+            className={`transition-all ease-out duration-100 text-left ${
+              showUserOptions ? "" : "hidden"
+            }`}
+          >
+            <div className="absolute right-2 top-[90%] z-1 p-2 outline outline-1 outline-text drop-shadow-2xl origin-top-right bg-complement">
+              <button
+                onClick={() => {
+                  setShowUserOptions(false);
+                  setUserName("");
+                }}
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      </header>
       <div className="flex flex-col md:flex-row h-full">
-        <ChatBox />
-        <SubRooms />
+        {userName ? (
+          <>
+            <ChatBox />
+            <SubRooms />
+          </>
+        ) : (
+          <Auth />
+        )}
       </div>
-    </div>
+    </main>
   );
 };
 

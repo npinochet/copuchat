@@ -2,35 +2,39 @@ import { AddIcon, DrawerIcon } from "../../assets/icons";
 import logo from "../../assets/logo.svg";
 import { drawerAtom, myRoomsAtom } from "../../data/atoms";
 import { RoomPreview } from "../../data/types";
-import { useAtom } from "jotai";
-import { Link, useParams } from "react-router-dom";
+import { useAtom, useSetAtom } from "jotai";
+import { NavLink, useParams } from "react-router-dom";
 
-const RoomButton = ({ name, room, activeUsersLength }: RoomPreview) => {
-  const { "*": thisRoom } = useParams();
-  const [rooms, setRooms] = useAtom(myRoomsAtom);
-
-  const fresh = rooms.find((r) => r.room === room) === undefined;
-  const selected = thisRoom === room;
+const RoomButton = ({
+  name,
+  room,
+  activeUsersLength,
+  fresh,
+}: RoomPreview & { fresh?: boolean }) => {
+  const setRooms = useSetAtom(myRoomsAtom);
 
   return (
-    <Link
-      className={`px-4 py-1 ${
-        selected || fresh
-          ? "bg-secondary"
-          : "bg-background hover:bg-secondary hover:cursor-pointer"
-      }`}
+    <NavLink
+      className={({ isActive }) =>
+        `px-4 py-1 ${
+          isActive || fresh
+            ? "bg-secondary"
+            : "bg-background hover:bg-secondary hover:cursor-pointer"
+        }`
+      }
       to={`/chat/${room}`}
+      end
     >
       <div className="flex justify-between items-center">
         {fresh && (
-          <div
+          <button
             className="flex items-center w-8 h-8 mr-2"
             onClick={() =>
               setRooms((state) => [...state, { name, room, activeUsersLength }])
             }
           >
             <AddIcon />
-          </div>
+          </button>
         )}
         <div className="w-full overflow-hidden">
           <p
@@ -49,7 +53,7 @@ const RoomButton = ({ name, room, activeUsersLength }: RoomPreview) => {
           {activeUsersLength}
         </p>
       </div>
-    </Link>
+    </NavLink>
   );
 };
 
@@ -65,7 +69,7 @@ const SideBar = () => {
   const fresh = rooms.find((r) => r.room === thisRoom.room) === undefined;
 
   return (
-    <div
+    <aside
       className={`bg-background z-10 h-full flex flex-col max-w-[15rem] absolute md:relative transition-all duration-200 md:left-0 ${
         drawerOpen ? "left-0" : "-z-10 -left-full"
       }`}
@@ -89,7 +93,7 @@ const SideBar = () => {
         {rooms.map((v, i) => (
           <RoomButton key={i} {...v} />
         ))}
-        {fresh && <RoomButton {...thisRoom} />}
+        {fresh && <RoomButton fresh {...thisRoom} />}
       </div>
       <div className="m-4">
         {!fresh && (
@@ -103,7 +107,7 @@ const SideBar = () => {
           </button>
         )}
       </div>
-    </div>
+    </aside>
   );
 };
 

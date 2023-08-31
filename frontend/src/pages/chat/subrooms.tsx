@@ -1,5 +1,5 @@
 import { Spinner } from "../../assets/icons";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useParams } from "react-router-dom";
 
@@ -11,12 +11,15 @@ type SubRoomEntry = {
 const SubRooms = () => {
   const { "*": room } = useParams();
   const [newSubRoom, setNewSubRoom] = useState("");
-  const { isLoading, error, data } = useQuery<SubRoomEntry[]>({
+  const { isLoading, error, data, refetch } = useQuery<SubRoomEntry[]>({
     queryKey: ["subRooms"],
     queryFn: async () =>
       (await fetch(`http://localhost:8090/sub_rooms/${room}`)).json(),
     refetchInterval: 30000,
   });
+  useEffect(() => {
+    refetch();
+  }, [room]);
   /*const rooms: RoomPreview[] = [
     {
       name: "ronaldo",
@@ -41,8 +44,7 @@ const SubRooms = () => {
     body = <div>Error fetching sub rooms: {JSON.stringify(error)}</div>;
   }
 
-  if (data || data === null) {
-    console.log(data); // TODO: Remove
+  if ((data && data?.map) || data === null) {
     body = (
       <>
         {data?.map((v, i) => (
@@ -76,14 +78,16 @@ const SubRooms = () => {
           <label className="text-sm">Create Sub Room</label>
           <div className="flex">
             <input
-              className="bg-background w-0 flex-1 outline outline-1 outline-primary cursor-text"
+              className="bg-background w-0 flex-1 outline outline-1 outline-text focus:outline-primary cursor-text"
               type="text"
               onChange={(evt) => setNewSubRoom(evt.currentTarget.value)}
+              value={newSubRoom}
             />
             {newSubRoom && (
               <Link
                 to={`/chat/${newSubRoom}`}
-                className="bg-primary text-secondary h-[24px] font-semibold ml-1 px-1 text-xs hover:bg-accent cursor-pointer"
+                className="bg-primary text-secondary h-[24px] flex items-center font-semibold ml-1 px-1 text-xs hover:bg-accent cursor-pointer"
+                onClick={() => setNewSubRoom("")}
               >
                 Go
               </Link>
@@ -95,11 +99,11 @@ const SubRooms = () => {
   }
 
   return (
-    <div className="bg-background flex flex-col justify-between items-center md:w-[15rem]">
+    <section className="bg-background flex flex-col justify-between items-center md:w-[15rem]">
       <h1 className="py-2">Sub Rooms</h1>
       {body}
-      <h1 className="p-3 text-sm">© Copuchat 2023</h1>
-    </div>
+      <footer className="p-3 text-sm">© Copuchat 2023</footer>
+    </section>
   );
 };
 
