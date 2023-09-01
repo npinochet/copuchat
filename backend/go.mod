@@ -35,6 +35,7 @@ require (
 	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/domodwyer/mailyak/v3 v3.6.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/dyatlov/go-opengraph/opengraph v0.0.0-20220524092352-606d7b1e5f8a
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/ganigeorgiev/fexpr v0.3.0 // indirect
@@ -59,6 +60,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
+	github.com/victorspringer/http-cache v0.0.0-20221205073845-df6d061f29cb
 	go.opencensus.io v0.24.0 // indirect
 	gocloud.dev v0.30.0 // indirect
 	golang.org/x/crypto v0.11.0 // indirect
@@ -86,4 +88,5 @@ require (
 	modernc.org/sqlite v1.23.1 // indirect
 	modernc.org/strutil v1.1.3 // indirect
 	modernc.org/token v1.1.0 // indirect
+	mvdan.cc/xurls/v2 v2.5.0
 )

@@ -2,19 +2,27 @@ package ws
 
 import (
 	"copuchat/internal/redis"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net"
+	"net/http"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/dyatlov/go-opengraph/opengraph"
 	redigo "github.com/gomodule/redigo/redis"
 	"golang.org/x/net/websocket"
+	"mvdan.cc/xurls/v2"
 )
 
+const cacheExpirationTime = 12 * time.Hour
+
 type Event struct {
-	Type string `json:"type"` // Can be: Messages, Message or Topic.
+	Type string `json:"type"` // Messages | Message | Preview | Topic.
 	Data any    `json:"data"`
 }
 
@@ -34,7 +42,7 @@ func GetHub(roomName string) *Hub {
 	return &Hub{RoomName: roomName, Conns: map[string]*websocket.Conn{}}
 }
 
-func (h *Hub) Broadcast(message *redis.Message, except []string) error {
+func (h *Hub) Broadcast(event Event, except []string) error {
 	h.RLock()
 	defer h.RUnlock()
 	for userName, conn := range h.Conns {
@@ -49,7 +57,7 @@ func (h *Hub) Broadcast(message *redis.Message, except []string) error {
 		if skip {
 			continue
 		}
-		if err := websocket.JSON.Send(conn, Event{Type: "Message", Data: message}); err != nil {
+		if err := websocket.JSON.Send(conn, event); err != nil {
 			return err
 		}
 	}
@@ -123,16 +131,82 @@ func handleMessage(hub *Hub, message *redis.Message, roomName string) error {
 	if err != nil {
 		return fmt.Errorf("ws: error adding message: to redis %w", err)
 	}
-	if err := hub.Broadcast(message, nil); err != nil {
+	if err := hub.Broadcast(Event{Type: "Message", Data: message}, nil); err != nil {
 		return fmt.Errorf("ws: error broadcasting: %w", err)
 	}
 	if newRoom {
 		path := strings.Split(roomName, "/")
 		parentRoom := strings.Join(path[:len(path)-1], "/")
-		if err := GetHub(parentRoom).Broadcast(message, nil); err != nil {
+		if err := GetHub(parentRoom).Broadcast(Event{Type: "Message", Data: message}, nil); err != nil {
 			return fmt.Errorf("ws: error broadcasting to parent room: %w", err)
 		}
 	}
 
+	go func() {
+		if err := broadcastPreview(hub, message); err != nil {
+			log.Printf("ws: error broadcasting open graph: %s\n", err)
+		}
+	}()
+
 	return nil
+}
+
+func broadcastPreview(hub *Hub, message *redis.Message) error {
+	url := xurls.Relaxed().FindString(message.Text)
+	if url == "" {
+		return nil
+	}
+	var graph *opengraph.OpenGraph
+	cacheKey := "cache:" + url
+
+	data, err := redis.Get(cacheKey)
+	if err != nil && !errors.Is(err, redis.ErrNil) {
+		return err
+	}
+	if err == nil {
+		if err := json.Unmarshal(data, &graph); err != nil {
+			return err
+		}
+	}
+	if errors.Is(err, redis.ErrNil) {
+		hub.Lock()
+		remoteAddr := hub.Conns[message.UserName].Request().RemoteAddr
+		hub.Unlock()
+		if graph, err = fetchOpenGraph(url, remoteAddr); err != nil {
+			return err
+		}
+		data, err := graph.ToJSON()
+		if err != nil {
+			return err
+		}
+		if err := redis.SetPX(cacheKey, data, cacheExpirationTime); err != nil {
+			return err
+		}
+	}
+
+	return hub.Broadcast(Event{Type: "Preview", Data: graph}, nil)
+}
+
+func fetchOpenGraph(url string, remoteAddr string) (*opengraph.OpenGraph, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if clientIP, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		req.Header.Set("X-Forwarded-For", clientIP)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	graph := opengraph.NewOpenGraph()
+	if err := graph.ProcessHTML(resp.Body); err != nil {
+		return nil, err
+	}
+
+	return graph, nil
 }

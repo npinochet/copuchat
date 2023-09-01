@@ -7,6 +7,7 @@ export type WebSocketResponse =
   | WebSocketEvent<"Message", Message>
   | WebSocketEvent<"Messages", Message[]>
   | WebSocketEvent<"Topic", string>
+  | WebSocketEvent<"Preview", any>
   | null;
 
 export type Message = {

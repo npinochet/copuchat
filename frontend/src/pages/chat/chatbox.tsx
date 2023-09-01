@@ -116,6 +116,9 @@ const ChatBox = () => {
       const messages = lastJsonMessage.data;
       if (messages) setChat(messages);
     }
+    if (lastJsonMessage.type === "Preview") {
+      console.log(lastJsonMessage.data);
+    }
   }, [lastJsonMessage, setChat]);
 
   useEffect(() => {
