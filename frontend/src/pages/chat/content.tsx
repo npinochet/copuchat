@@ -168,6 +168,7 @@ const Content = () => {
             </div>
           </button>
           <div
+            // TODO: Make transitions work
             className={`transition-all ease-out duration-100 text-left ${
               showUserOptions ? "" : "hidden"
             }`}

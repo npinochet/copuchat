@@ -2,18 +2,14 @@ package ws
 
 import (
 	"copuchat/internal/redis"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"net"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/dyatlov/go-opengraph/opengraph"
 	redigo "github.com/gomodule/redigo/redis"
 	"golang.org/x/net/websocket"
 	"mvdan.cc/xurls/v2"
@@ -22,7 +18,7 @@ import (
 const cacheExpirationTime = 12 * time.Hour
 
 type Event struct {
-	Type string `json:"type"` // Messages | Message | Preview | Topic.
+	Type string `json:"type"` // Messages | Message | Preview | Topic | Error.
 	Data any    `json:"data"`
 }
 
@@ -100,7 +96,9 @@ func Handler(roomName, userName string) websocket.Handler {
 			message.UserName = userName
 			if err := handleMessage(hub, message, roomName); err != nil {
 				log.Printf("ws: error handling message: %s\n", err)
-				// TODO: Send error message somehow
+				if err := websocket.JSON.Send(conn, Event{Type: "Error", Data: err.Error()}); err != nil {
+					log.Printf("ws: error sending error message: %s\n", err)
+				}
 			}
 		}
 	}
@@ -143,7 +141,7 @@ func handleMessage(hub *Hub, message *redis.Message, roomName string) error {
 	}
 
 	go func() {
-		if err := broadcastPreview(hub, message); err != nil {
+		if err := broadcastLinkPreview(hub, message); err != nil {
 			log.Printf("ws: error broadcasting open graph: %s\n", err)
 		}
 	}()
@@ -151,62 +149,18 @@ func handleMessage(hub *Hub, message *redis.Message, roomName string) error {
 	return nil
 }
 
-func broadcastPreview(hub *Hub, message *redis.Message) error {
+func broadcastLinkPreview(hub *Hub, message *redis.Message) error {
 	url := xurls.Relaxed().FindString(message.Text)
 	if url == "" {
 		return nil
 	}
-	var graph *opengraph.OpenGraph
-	cacheKey := "cache:" + url
-
-	data, err := redis.Get(cacheKey)
-	if err != nil && !errors.Is(err, redis.ErrNil) {
+	graph, err := LinkPreviewGraph(url, hub, message.UserName)
+	if err != nil {
 		return err
 	}
-	if err == nil {
-		if err := json.Unmarshal(data, &graph); err != nil {
-			return err
-		}
-	}
-	if errors.Is(err, redis.ErrNil) {
-		hub.Lock()
-		remoteAddr := hub.Conns[message.UserName].Request().RemoteAddr
-		hub.Unlock()
-		if graph, err = fetchOpenGraph(url, remoteAddr); err != nil {
-			return err
-		}
-		data, err := graph.ToJSON()
-		if err != nil {
-			return err
-		}
-		if err := redis.SetPX(cacheKey, data, cacheExpirationTime); err != nil {
-			return err
-		}
+	if graph.Title == "" {
+		return nil
 	}
 
 	return hub.Broadcast(Event{Type: "Preview", Data: graph}, nil)
-}
-
-func fetchOpenGraph(url string, remoteAddr string) (*opengraph.OpenGraph, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if clientIP, _, err := net.SplitHostPort(remoteAddr); err == nil {
-		req.Header.Set("X-Forwarded-For", clientIP)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	graph := opengraph.NewOpenGraph()
-	if err := graph.ProcessHTML(resp.Body); err != nil {
-		return nil, err
-	}
-
-	return graph, nil
 }

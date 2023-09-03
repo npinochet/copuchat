@@ -4,7 +4,6 @@ import (
 	"copuchat/internal/redis"
 	"copuchat/internal/ws"
 	"io"
-	"net"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
@@ -18,7 +17,6 @@ func Routes(app *pocketbase.PocketBase) []echo.Route {
 		postRoomTopicRoute(app),
 		getRoomActiveUsersRoute(app),
 		getSubRoomsRoute(app),
-		//getPreviewURL(app),
 	}
 }
 
@@ -103,43 +101,6 @@ func getSubRoomsRoute(app *pocketbase.PocketBase) echo.Route {
 		},
 		Middlewares: []echo.MiddlewareFunc{
 			apis.ActivityLogger(app),
-		},
-	}
-}
-
-func getPreviewURL(app *pocketbase.PocketBase) echo.Route {
-	return echo.Route{
-		Method: http.MethodGet,
-		Path:   "preview_url",
-		Handler: func(c echo.Context) error {
-			paramURL := c.QueryParam("url")
-			if paramURL == "" {
-				return echo.NewHTTPError(http.StatusBadRequest, "missing url")
-			}
-			req, err := http.NewRequest(http.MethodGet, paramURL, nil)
-			if err != nil {
-				return err
-			}
-			if clientIP, _, err := net.SplitHostPort(c.Request().RemoteAddr); err == nil {
-				req.Header.Set("X-Forwarded-For", clientIP)
-			}
-
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
-
-			contentType := resp.Header.Get("Content-Type")
-			if contentType == "" {
-				contentType = "text/html"
-			}
-
-			return c.Stream(http.StatusOK, contentType, resp.Body)
-		},
-		Middlewares: []echo.MiddlewareFunc{
-			apis.ActivityLogger(app),
-			cacheResponse,
 		},
 	}
 }

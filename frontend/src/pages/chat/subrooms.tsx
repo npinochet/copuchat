@@ -56,14 +56,12 @@ const SubRooms = () => {
             <div className="flex justify-between items-center">
               <div className="w-full overflow-hidden">
                 <p
-                  className="text-xs text-slate-300 overflow-hidden whitespace-nowrap text-ellipsis text-left"
+                  className="text-xs text-slate-300 truncate text-left"
                   style={{ direction: "rtl" }}
                 >
                   <bdi>{v.roomName}</bdi>
                 </p>
-                <p className="overflow-hidden whitespace-nowrap text-ellipsis">
-                  {v.roomName.split("/").pop()}
-                </p>
+                <p className="truncate">{v.roomName.split("/").pop()}</p>
               </div>
               <div className="mx-3" />
               <p className="flex items-center text-center">

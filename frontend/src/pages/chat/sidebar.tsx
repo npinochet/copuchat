@@ -38,14 +38,12 @@ const RoomButton = ({
         )}
         <div className="w-full overflow-hidden">
           <p
-            className="text-xs text-slate-300 overflow-hidden whitespace-nowrap text-ellipsis text-left"
+            className="text-xs text-slate-300 truncate text-left"
             style={{ direction: "rtl" }}
           >
             <bdi>{room || "home"}</bdi>
           </p>
-          <p className="overflow-hidden whitespace-nowrap text-ellipsis">
-            {name || "home"}
-          </p>
+          <p className="truncate">{name || "home"}</p>
         </div>
         <div className="mx-3" />
         <p className="flex items-center text-center">

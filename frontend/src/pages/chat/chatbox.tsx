@@ -1,5 +1,10 @@
 import { userNameAtom } from "../../data/atoms";
-import { Message, WebSocketResponse } from "../../data/types";
+import {
+  ChatEvent,
+  LinkPreview,
+  Message,
+  WebSocketResponse,
+} from "../../data/types";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import Linkify from "react-linkify";
@@ -65,6 +70,7 @@ const TextEntry = ({
         </div>
         <Linkify
           componentDecorator={(href, text, key) => (
+            //https://play.tailwindcss.com/36Sefv582C
             <a
               href={href}
               key={key}
@@ -89,10 +95,45 @@ const TextEntry = ({
   );
 };
 
+const LinkPreviewMessage = ({
+  url,
+  title,
+  description,
+  site_name,
+  images,
+}: LinkPreview) => {
+  return (
+    <div className="mx-auto max-w-2lg bg-gray-200 ring-1">
+      <a href={url} className="flex">
+        {images?.at(0) && (
+          <div
+            className="object-contain flex-1 max-w-[10rem] min-w-[8rem]"
+            style={{
+              background: `url(${images[0]}) no-repeat center center / contain`,
+            }}
+          ></div>
+        )}
+        <div className="flex flex-col p-3 overflow-hidden">
+          <div className="text-md truncate leading-tight text-gray-900">
+            {title}
+          </div>
+          <p className="text-gray-500 truncate">
+            {site_name && `${site_name} - `}
+            {new URL(url).host}
+          </p>
+          {description && (
+            <p className="text-sm text-black truncate">{description}</p>
+          )}
+        </div>
+      </a>
+    </div>
+  );
+};
+
 const ChatBox = () => {
   const { "*": room } = useParams();
   const userName = useAtomValue(userNameAtom);
-  const [chat, setChat] = useState<Message[]>([]);
+  const [chat, setChat] = useState<ChatEvent[]>([]);
   const [message, setMessage] = useState<string>("");
   const inputRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -108,16 +149,21 @@ const ChatBox = () => {
 
   useEffect(() => {
     if (lastJsonMessage == null) return;
+    console.log(lastJsonMessage.data);
     if (lastJsonMessage.type === "Message") {
       const message = lastJsonMessage.data;
-      if (message?.text) setChat((chat) => [...chat, message]);
+      if (message?.text) setChat((chat) => [...chat, lastJsonMessage]);
     }
     if (lastJsonMessage.type === "Messages") {
       const messages = lastJsonMessage.data;
-      if (messages) setChat(messages);
+      if (messages)
+        messages.forEach((m) =>
+          setChat((chat) => [...chat, { type: "Message", data: m }])
+        );
     }
     if (lastJsonMessage.type === "Preview") {
-      console.log(lastJsonMessage.data);
+      const preview = lastJsonMessage.data;
+      if (preview?.description) setChat((chat) => [...chat, lastJsonMessage]);
     }
   }, [lastJsonMessage, setChat]);
 
@@ -141,13 +187,19 @@ const ChatBox = () => {
     <section className="bg-complement flex flex-col p-4 flex-1 min-h-full">
       <div className="overflow-y-scroll flex-1 basis-0" ref={boxRef}>
         <div className="flex flex-col justify-end flex-1">
-          {chat.map((v, i) => (
-            <TextEntry
-              key={i}
-              message={v}
-              showName={v.userName != chat[i - 1]?.userName}
-            />
-          ))}
+          {chat.map((m, i) =>
+            m.type === "Message" ? (
+              <TextEntry
+                key={i}
+                message={m.data}
+                showName={
+                  m.data.userName != (chat[i - 1]?.data as Message)?.userName
+                }
+              />
+            ) : (
+              <LinkPreviewMessage key={i} {...m.data} />
+            )
+          )}
         </div>
       </div>
       <div className="flex items-center pt-3">
